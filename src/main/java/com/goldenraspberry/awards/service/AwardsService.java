@@ -11,6 +11,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 @Service
 public class AwardsService {
@@ -22,66 +24,77 @@ public class AwardsService {
     public AwardsIntervalResponseDTO getProducerIntervals() {
         List<Movie> winningMovies = movieRepository.findByWinnerTrue();
         
-        // Agrupar filmes vencedores por produtor
-        Map<Producer, List<Integer>> producerWins = new HashMap<>();
-        
-        for (Movie movie : winningMovies) {
-            for (Producer producer : movie.getProducers()) {
-                producerWins.computeIfAbsent(producer, k -> new ArrayList<>())
-                        .add(movie.getYear());
-            }
-        }
+        // Agrupar anos de vitórias por produtor em uma única passada
+        Map<String, List<Integer>> producerWins = winningMovies.stream()
+                .flatMap(movie -> movie.getProducers().stream()
+                        .map(producer -> new AbstractMap.SimpleEntry<>(producer.getName(), movie.getYear())))
+                .collect(Collectors.groupingBy(
+                        Map.Entry::getKey,
+                        Collectors.mapping(Map.Entry::getValue, Collectors.toList())
+                ));
 
-        // Calcular intervalos para cada produtor
-        List<ProducerIntervalDTO> allIntervals = new ArrayList<>();
-        
-        for (Map.Entry<Producer, List<Integer>> entry : producerWins.entrySet()) {
-            Producer producer = entry.getKey();
-            List<Integer> years = entry.getValue();
-            
-            // Ordenar anos
-            Collections.sort(years);
-            
-            // Calcular intervalos entre anos consecutivos
-            for (int i = 0; i < years.size() - 1; i++) {
-                int previousWin = years.get(i);
-                int followingWin = years.get(i + 1);
-                int interval = followingWin - previousWin;
-                
-                ProducerIntervalDTO dto = new ProducerIntervalDTO();
-                dto.setProducer(producer.getName());
-                dto.setInterval(interval);
-                dto.setPreviousWin(previousWin);
-                dto.setFollowingWin(followingWin);
-                
-                allIntervals.add(dto);
-            }
-        }
+        // Calcular todos os intervalos e encontrar min/max em uma única passada
+        List<ProducerIntervalDTO> allIntervals = producerWins.entrySet().stream()
+                .flatMap(entry -> calculateIntervals(entry.getKey(), entry.getValue()))
+                .collect(Collectors.toList());
 
-        // Encontrar intervalos mínimos e máximos
         if (allIntervals.isEmpty()) {
             return new AwardsIntervalResponseDTO(new ArrayList<>(), new ArrayList<>());
         }
 
-        int minInterval = allIntervals.stream()
-                .mapToInt(ProducerIntervalDTO::getInterval)
-                .min()
-                .orElse(0);
-
-        int maxInterval = allIntervals.stream()
-                .mapToInt(ProducerIntervalDTO::getInterval)
-                .max()
-                .orElse(0);
-
-        List<ProducerIntervalDTO> minIntervals = allIntervals.stream()
-                .filter(dto -> dto.getInterval().equals(minInterval))
-                .collect(Collectors.toList());
-
-        List<ProducerIntervalDTO> maxIntervals = allIntervals.stream()
-                .filter(dto -> dto.getInterval().equals(maxInterval))
-                .collect(Collectors.toList());
+        // Encontrar min, max e filtrar em uma única passada otimizada
+        List<ProducerIntervalDTO> minIntervals = new ArrayList<>();
+        List<ProducerIntervalDTO> maxIntervals = new ArrayList<>();
+        int minInterval = Integer.MAX_VALUE;
+        int maxInterval = Integer.MIN_VALUE;
+        
+        // Primeira passada: encontrar min e max
+        for (ProducerIntervalDTO dto : allIntervals) {
+            int interval = dto.getInterval();
+            if (interval < minInterval) {
+                minInterval = interval;
+                minIntervals.clear();
+                minIntervals.add(dto);
+            } else if (interval == minInterval) {
+                minIntervals.add(dto);
+            }
+            
+            if (interval > maxInterval) {
+                maxInterval = interval;
+                maxIntervals.clear();
+                maxIntervals.add(dto);
+            } else if (interval == maxInterval) {
+                maxIntervals.add(dto);
+            }
+        }
 
         return new AwardsIntervalResponseDTO(minIntervals, maxIntervals);
+    }
+
+    /**
+     * Calcula os intervalos entre anos consecutivos para um produtor.
+     * Os anos são ordenados e os intervalos são calculados em uma única passada.
+     */
+    private Stream<ProducerIntervalDTO> calculateIntervals(String producerName, List<Integer> years) {
+        if (years.size() < 2) {
+            return Stream.empty();
+        }
+
+        List<Integer> sortedYears = years.stream()
+                .sorted()
+                .collect(Collectors.toList());
+
+        return IntStream.range(0, sortedYears.size() - 1)
+                .mapToObj(i -> {
+                    int previousWin = sortedYears.get(i);
+                    int followingWin = sortedYears.get(i + 1);
+                    ProducerIntervalDTO dto = new ProducerIntervalDTO();
+                    dto.setProducer(producerName);
+                    dto.setInterval(followingWin - previousWin);
+                    dto.setPreviousWin(previousWin);
+                    dto.setFollowingWin(followingWin);
+                    return dto;
+                });
     }
 }
 

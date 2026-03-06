@@ -39,49 +39,50 @@ class AwardsServiceIntegrationTest {
         assertFalse(response.getMin().isEmpty(), "Deve haver pelo menos um intervalo mínimo");
         assertFalse(response.getMax().isEmpty(), "Deve haver pelo menos um intervalo máximo");
 
-        // Verificar que todos os intervalos mínimos têm o mesmo valor
+        // Verificar estrutura e consistência dos intervalos mínimos e máximos em loops otimizados
+        int minIntervalValue = -1;
+        int maxIntervalValue = -1;
+
+        // Verificar intervalos mínimos: estrutura, consistência e valor único
         if (!response.getMin().isEmpty()) {
-            int minIntervalValue = response.getMin().get(0).getInterval();
+            minIntervalValue = response.getMin().get(0).getInterval();
             for (ProducerIntervalDTO dto : response.getMin()) {
-                assertEquals(minIntervalValue, dto.getInterval(), 
+                // Verificar estrutura
+                assertNotNull(dto.getProducer(), "Producer não deve ser nulo");
+                assertNotNull(dto.getInterval(), "Interval não deve ser nulo");
+                assertNotNull(dto.getPreviousWin(), "PreviousWin não deve ser nulo");
+                assertNotNull(dto.getFollowingWin(), "FollowingWin não deve ser nulo");
+                assertTrue(dto.getInterval() > 0, "Interval deve ser maior que zero");
+                assertEquals(dto.getFollowingWin() - dto.getPreviousWin(), dto.getInterval(),
+                        "Interval deve ser a diferença entre followingWin e previousWin");
+                // Verificar que todos têm o mesmo valor
+                assertEquals(minIntervalValue, dto.getInterval(),
                         "Todos os intervalos mínimos devem ter o mesmo valor");
             }
         }
 
-        // Verificar que todos os intervalos máximos têm o mesmo valor
+        // Verificar intervalos máximos: estrutura, consistência e valor único
         if (!response.getMax().isEmpty()) {
-            int maxIntervalValue = response.getMax().get(0).getInterval();
+            maxIntervalValue = response.getMax().get(0).getInterval();
             for (ProducerIntervalDTO dto : response.getMax()) {
-                assertEquals(maxIntervalValue, dto.getInterval(), 
+                // Verificar estrutura
+                assertNotNull(dto.getProducer(), "Producer não deve ser nulo");
+                assertNotNull(dto.getInterval(), "Interval não deve ser nulo");
+                assertNotNull(dto.getPreviousWin(), "PreviousWin não deve ser nulo");
+                assertNotNull(dto.getFollowingWin(), "FollowingWin não deve ser nulo");
+                assertTrue(dto.getInterval() > 0, "Interval deve ser maior que zero");
+                assertEquals(dto.getFollowingWin() - dto.getPreviousWin(), dto.getInterval(),
+                        "Interval deve ser a diferença entre followingWin e previousWin");
+                // Verificar que todos têm o mesmo valor
+                assertEquals(maxIntervalValue, dto.getInterval(),
                         "Todos os intervalos máximos devem ter o mesmo valor");
             }
         }
 
         // Verificar que o intervalo mínimo é menor ou igual ao máximo
-        if (!response.getMin().isEmpty() && !response.getMax().isEmpty()) {
-            int minInterval = response.getMin().get(0).getInterval();
-            int maxInterval = response.getMax().get(0).getInterval();
-            assertTrue(minInterval <= maxInterval, 
+        if (minIntervalValue >= 0 && maxIntervalValue >= 0) {
+            assertTrue(minIntervalValue <= maxIntervalValue,
                     "Intervalo mínimo deve ser menor ou igual ao intervalo máximo");
-        }
-
-        // Verificar estrutura dos DTOs
-        for (ProducerIntervalDTO dto : response.getMin()) {
-            assertNotNull(dto.getProducer());
-            assertNotNull(dto.getInterval());
-            assertNotNull(dto.getPreviousWin());
-            assertNotNull(dto.getFollowingWin());
-            assertTrue(dto.getInterval() > 0);
-            assertEquals(dto.getFollowingWin() - dto.getPreviousWin(), dto.getInterval());
-        }
-
-        for (ProducerIntervalDTO dto : response.getMax()) {
-            assertNotNull(dto.getProducer());
-            assertNotNull(dto.getInterval());
-            assertNotNull(dto.getPreviousWin());
-            assertNotNull(dto.getFollowingWin());
-            assertTrue(dto.getInterval() > 0);
-            assertEquals(dto.getFollowingWin() - dto.getPreviousWin(), dto.getInterval());
         }
     }
 }
